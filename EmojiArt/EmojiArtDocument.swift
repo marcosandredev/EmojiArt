@@ -4,11 +4,18 @@
 //
 //  Created by Marcos André Novaes de Lara on 16/04/22.
 //
-//  View
+//  ViewModel
+
 import SwiftUI
 
 class EmojiArtDocument: ObservableObject {
-  @Published private(set) var emojiArt: EmojiArtModel
+  @Published private(set) var emojiArt: EmojiArtModel {
+    didSet {
+      if emojiArt.background != oldValue.background {
+        fetchBackgroundImageDataIfNecessary()
+      }
+    }
+  }
   
   init() {
     emojiArt = EmojiArtModel()
@@ -22,6 +29,38 @@ class EmojiArtDocument: ObservableObject {
   
   var background: EmojiArtModel.Background {
     emojiArt.background
+  }
+  
+  @Published var backgroundImage: UIImage?
+  @Published var backgroundImageFetchStatus = BackgroundImageFetchStatus.idle
+  
+  enum BackgroundImageFetchStatus {
+    case idle
+    case fetching
+  }
+  
+  private func fetchBackgroundImageDataIfNecessary() {
+    backgroundImage = nil
+    switch emojiArt.background {
+      case .url(let url):
+        // fetch the url
+        backgroundImageFetchStatus = .fetching
+        DispatchQueue.global(qos: .userInitiated).async { // Multithreading, ser executado em uma thread de segundo plano e não na principal, para ser mais rápido o processo de download da imagem
+          let imageData = try? Data(contentsOf: url) // try? significa tente ou retorne nil, assim não ocasiona erro
+          DispatchQueue.main.async {[weak self] in // Published só pode ser feito na thread principal, mudanças na view, weak = redefinir qualquer variavel para ter uma nova versão dela, apenas dentro desse trecho de código, transformando o self em optional, não se mantém na memória
+            if self?.emojiArt.background == EmojiArtModel.Background.url(url) {
+              self?.backgroundImageFetchStatus = .idle
+              if imageData != nil {
+                self?.backgroundImage = UIImage(data: imageData!)
+              }
+            }
+          }
+        }
+      case .imageData(let data):
+        backgroundImage = UIImage(data: data)
+      case .blank:
+        break
+    }
   }
   
   // MARK: - Intent(s)
