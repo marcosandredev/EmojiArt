@@ -15,7 +15,7 @@ struct EmojiArtDocumentView: View {
   var body: some View {
     VStack(spacing:0) {
       documentBody
-      palette
+      PaletteChooser(emojiFontSize: defaultEmojiFontSize)
     }
   }
   
@@ -47,8 +47,37 @@ struct EmojiArtDocumentView: View {
         providers, location in drop(providers: providers, at: location, in: geometry)
       }
       .gesture(panGesture().simultaneously(with: zoomGesture())) // Utilizar simultaneously quando for usar mais de um gesto na mesma View e quer eles simultaneamente
+      .alert(item: $alertToShow) { alertToShow in
+          // return Alert
+        alertToShow.alert()
+      }
+        // L12 monitor fetch status and alert user if fetch failed
+      .onChange(of: document.backgroundImageFetchStatus) { status in
+        switch status {
+          case .failed(let url):
+            showBackgroundImageFetchFailedAlert(url)
+          default:
+            break
+        }
+      }
     }
   }
+  
+  // L12 state which says whether a certain identifiable alert should be showing
+  @State private var alertToShow: IdentifiableAlert?
+  
+  // L12 sets alertToShow to an IdentifiableAlert explaining a url fetch failure
+  private func showBackgroundImageFetchFailedAlert(_ url: URL) {
+    alertToShow = IdentifiableAlert(id: "fetch failed: " + url.absoluteString, alert: {
+      Alert(
+        title: Text("Background Image Fetch"),
+        message: Text("Couldn't load image from \(url)."),
+        dismissButton: .default(Text("OK"))
+      )
+    })
+  }
+  
+  // MARK: - Drag and Drop
   
   private func drop(providers: [NSItemProvider], at location: CGPoint, in geometry: GeometryProxy) -> Bool {
     var found = providers.loadObjects(ofType: URL.self) {
@@ -67,15 +96,21 @@ struct EmojiArtDocumentView: View {
       found = providers.loadObjects(ofType: String.self) {
         string in
         if let emoji = string.first, emoji.isEmoji {
-          document.addEmoji(String(emoji), at: convertToEmojiCoordinates(location, in: geometry), size: defaultEmojiFontSize)
+          document.addEmoji(String(emoji), at: convertToEmojiCoordinates(location, in: geometry), size: defaultEmojiFontSize / zoomScale)
         }
       }
     }
     return found
   }
   
+  // MARK: - Positioning/Sizing Emoji
+  
   private func position(for emoji: EmojiArtModel.Emoji, in geometry: GeometryProxy) -> CGPoint {
     convertFromEmojiCoordinates((emoji.x, emoji.y), in: geometry)
+  }
+  
+  private func fontSize(for emoji: EmojiArtModel.Emoji) -> CGFloat {
+    CGFloat(emoji.size)
   }
   
   private func convertToEmojiCoordinates(_ location: CGPoint, in geometry: GeometryProxy) -> (x: Int, y: Int) {
@@ -95,30 +130,10 @@ struct EmojiArtDocumentView: View {
     )
   }
   
-  private func fontSize(for emoji: EmojiArtModel.Emoji) -> CGFloat {
-    CGFloat(emoji.size)
-  }
+  // MARK: - Zooming
+  
   @State private var steadyStateZoomScale: CGFloat = 1
   @GestureState private var gestureZoomScale: CGFloat = 1 // Apenas enquanto o gesto estiver acontecendo
-  
-  @State private var steadyStatePanOffset: CGSize = CGSize.zero
-  @GestureState private var gesturePanOffset: CGSize = CGSize.zero // Apenas enquanto o gesto estiver acontecendo
-  
-  private var panOffset: CGSize {
-    (steadyStatePanOffset + gesturePanOffset) * zoomScale
-  }
-  
-  private func panGesture() -> some Gesture {
-    DragGesture()
-      .updating($gesturePanOffset) {
-        latestDragGestureValue, gesturePanOffset, _ in
-        gesturePanOffset = latestDragGestureValue.translation / zoomScale
-      }
-      .onEnded {
-        finalDragGestureValue in
-        steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
-      }
-  }
   
   private var zoomScale: CGFloat {
     steadyStateZoomScale * gestureZoomScale
@@ -153,30 +168,27 @@ struct EmojiArtDocumentView: View {
     }
   }
   
-  var palette: some View {
-    ScrollingEmojisView(emojis: testEmojis)
-      .font(.system(size: defaultEmojiFontSize))
+  // MARK: - Panning
+  
+  @State private var steadyStatePanOffset: CGSize = CGSize.zero
+  @GestureState private var gesturePanOffset: CGSize = CGSize.zero // Apenas enquanto o gesto estiver acontecendo
+  
+  private var panOffset: CGSize {
+    (steadyStatePanOffset + gesturePanOffset) * zoomScale
   }
   
-  let testEmojis = "😀😷🦠💉👻👀🐶🌲🌎🌞🔥🍎⚽️🚗🚓🚲🛩🚁🚀🛸🏠⌚️🎁🗝🔐❤️⛔️❌❓✅⚠️🎶➕➖🏳️"
-}
-
-struct ScrollingEmojisView: View {
-  let emojis: String
-  
-  var body: some View {
-    ScrollView(.horizontal) {
-      HStack {
-        ForEach(emojis.map {
-          String($0) }, id: \.self) {
-          emoji in Text(emoji)
-              .onDrag{
-                NSItemProvider(object: emoji as NSString)      
-              }
-        }
+  private func panGesture() -> some Gesture {
+    DragGesture()
+      .updating($gesturePanOffset) {
+        latestDragGestureValue, gesturePanOffset, _ in
+        gesturePanOffset = latestDragGestureValue.translation / zoomScale
       }
-    }
+      .onEnded {
+        finalDragGestureValue in
+        steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
+      }
   }
+  
 }
 
 

@@ -11,7 +11,7 @@ import SwiftUI
 class EmojiArtDocument: ObservableObject {
   @Published private(set) var emojiArt: EmojiArtModel {
     didSet {
-      autosave()
+      scheduleAutosave()
       if emojiArt.background != oldValue.background {
         fetchBackgroundImageDataIfNecessary()
       }
@@ -74,12 +74,15 @@ class EmojiArtDocument: ObservableObject {
     emojiArt.background
   }
   
+  // MARK: - Background
+  
   @Published var backgroundImage: UIImage?
   @Published var backgroundImageFetchStatus = BackgroundImageFetchStatus.idle
   
-  enum BackgroundImageFetchStatus {
+  enum BackgroundImageFetchStatus: Equatable {
     case idle
     case fetching
+    case failed(URL)
   }
   
   private func fetchBackgroundImageDataIfNecessary() {
@@ -95,6 +98,9 @@ class EmojiArtDocument: ObservableObject {
               self?.backgroundImageFetchStatus = .idle
               if imageData != nil {
                 self?.backgroundImage = UIImage(data: imageData!)
+              }
+              if self?.backgroundImage == nil {
+                self?.backgroundImageFetchStatus = .failed(url)
               }
             }
           }
