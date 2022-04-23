@@ -15,7 +15,8 @@ struct PaletteChooser: View {
   
   @EnvironmentObject var store: PaletteStore
   
-  @State private var chosenPaletteIndex = 0
+  @SceneStorage("PaletteChooser.chosenPaletteIndex")
+  private var chosenPaletteIndex = 0 // Preservar o componente em uma cena
   
     var body: some View {
       HStack {

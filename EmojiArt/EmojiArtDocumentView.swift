@@ -10,7 +10,9 @@ import SwiftUI
 struct EmojiArtDocumentView: View {
   @ObservedObject var document: EmojiArtDocument
   
-  let defaultEmojiFontSize: CGFloat = 40
+  @Environment(\.undoManager) var undoManager
+  
+  @ScaledMetric var defaultEmojiFontSize: CGFloat = 40 // Permite a alteração de um tamanho que antes era fixo com let, para aumentar com acessibilidade, por exemplo
   
   var body: some View {
     VStack(spacing:0) {
@@ -51,7 +53,7 @@ struct EmojiArtDocumentView: View {
           // return Alert
         alertToShow.alert()
       }
-        // L12 monitor fetch status and alert user if fetch failed
+        // Status de busca alerta o usuário se a busca falhar
       .onChange(of: document.backgroundImageFetchStatus) { status in
         switch status {
           case .failed(let url):
@@ -61,15 +63,24 @@ struct EmojiArtDocumentView: View {
         }
       }
       .onReceive(document.$backgroundImage) { image in
-        zoomToFit(image, in: geometry.size)
+        if autozoom {
+          zoomToFit(image, in: geometry.size)
+        }
+      }
+      .toolbar {
+        UndoButton(
+          undo: undoManager?.optionalUndoMenuItemTitle,
+          redo: undoManager?.optionalUndoMenuItemTitle)
       }
     }
   }
   
-  // L12 state which says whether a certain identifiable alert should be showing
+  @State private var autozoom = false
+  
+  // Estado que diz se um determinado alerta identificável deve ser exibido
   @State private var alertToShow: IdentifiableAlert?
   
-  // L12 sets alertToShow to an IdentifiableAlert explaining a url fetch failure
+  // Define alertToShow para um Alerta Identificável explicando uma falha de busca de URL
   private func showBackgroundImageFetchFailedAlert(_ url: URL) {
     alertToShow = IdentifiableAlert(id: "fetch failed: " + url.absoluteString, alert: {
       Alert(
@@ -83,14 +94,16 @@ struct EmojiArtDocumentView: View {
   // MARK: - Drag and Drop
   
   private func drop(providers: [NSItemProvider], at location: CGPoint, in geometry: GeometryProxy) -> Bool {
-    var found = providers.loadObjects(ofType: URL.self) {
-      url in document.setBackground(.url(url.imageURL))
+    var found = providers.loadObjects(ofType: URL.self) {url in
+      autozoom = true
+      document.setBackground(.url(url.imageURL), undoManager: undoManager)
     }
     
     if !found {
       found = providers.loadObjects(ofType: UIImage.self) {
         image in if let data = image.jpegData(compressionQuality: 1.0) { // Imagem sem perda
-          document.setBackground(.imageData(data))
+          autozoom = true
+          document.setBackground(.imageData(data), undoManager: undoManager)
         }
       }
     }
@@ -99,7 +112,10 @@ struct EmojiArtDocumentView: View {
       found = providers.loadObjects(ofType: String.self) {
         string in
         if let emoji = string.first, emoji.isEmoji {
-          document.addEmoji(String(emoji), at: convertToEmojiCoordinates(location, in: geometry), size: defaultEmojiFontSize / zoomScale)
+          document.addEmoji(
+            String(emoji),
+            at: convertToEmojiCoordinates(location, in: geometry),
+            size: defaultEmojiFontSize / zoomScale, undoManager: undoManager)
         }
       }
     }
@@ -135,7 +151,8 @@ struct EmojiArtDocumentView: View {
   
   // MARK: - Zooming
   
-  @State private var steadyStateZoomScale: CGFloat = 1
+  @SceneStorage("EmojiArtDocumentView.steadyStateZoomScale")
+  private var steadyStateZoomScale: CGFloat = 1
   @GestureState private var gestureZoomScale: CGFloat = 1 // Apenas enquanto o gesto estiver acontecendo
   
   private var zoomScale: CGFloat {
@@ -173,7 +190,8 @@ struct EmojiArtDocumentView: View {
   
   // MARK: - Panning
   
-  @State private var steadyStatePanOffset: CGSize = CGSize.zero
+  @SceneStorage("EmojiArtDocumentView.steadyStatePanOffset")
+  private var steadyStatePanOffset: CGSize = CGSize.zero
   @GestureState private var gesturePanOffset: CGSize = CGSize.zero // Apenas enquanto o gesto estiver acontecendo
   
   private var panOffset: CGSize {
