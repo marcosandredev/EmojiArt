@@ -40,6 +40,8 @@
 	</array>
 	<key>UISupportsDocumentBrowser</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>A câmera pode ser usada para definir um plano de fundo de um documento EmojiArt</string>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>

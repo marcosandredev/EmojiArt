@@ -56,16 +56,9 @@ struct PaletteManager: View {
       // (não para o NavigationView)
       // (NavigationView analisa a visualização que está mostrando atualmente para obter informações da barra de ferramentas)
       // (o mesmo nome e titledisplaymode acima)
+      .dismissable { presentationMode.wrappedValue.dismiss() }
       .toolbar {
         ToolbarItem { EditButton() }
-        ToolbarItem(placement: .navigationBarLeading) {
-          if presentationMode.wrappedValue.isPresented,
-             UIDevice.current.userInterfaceIdiom != .pad {
-            Button("Fechar") {
-              presentationMode.wrappedValue.dismiss()
-            }
-          }
-        }
       }
       .environment(\.editMode, $editMode)
     }

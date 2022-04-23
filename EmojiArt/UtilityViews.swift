@@ -60,8 +60,31 @@ struct AnimatedActionButton: View {
 // é claro, o identificador de string tem que ser exclusivo para todos os seus diferentes tipos de alertas
 
 struct IdentifiableAlert: Identifiable {
-    var id: String
-    var alert: () -> Alert
+  var id: String
+  var alert: () -> Alert
+  
+  init(id: String, alert: @escaping () -> Alert) {
+    self.id = id
+    self.alert = alert
+  }
+  
+  init(id: String, title: String, message: String) {
+    self.id = id
+    alert = {Alert(
+      title: Text(title),
+      message: Text(message),
+      dismissButton: .default(Text("OK")))
+    }
+  }
+  
+  init(title: String, message: String) {
+    self.id = title + message
+    alert = {Alert(
+      title: Text(title),
+      message: Text(message),
+      dismissButton: .default(Text("OK")))
+    }
+  }
 }
 
 // um botão que desfaz (preferido) ou refaz
@@ -117,5 +140,66 @@ extension UndoManager {
   }
   var optionalRedoMenuItemTitle: String? {
     canRedo ? redoMenuItemTitle : nil
+  }
+}
+
+
+extension View {
+  @ViewBuilder // Sempre que tiver alguma função que retorna alguma view que pode ser de dois tipos diferentes, ela tem que ser ViewBuilder
+  func wrappedInNavigationViewToMakeDismissable(_ dismiss: (() -> Void)?) -> some View {
+    if UIDevice.current.userInterfaceIdiom != .pad, let dismiss = dismiss { // Verificar o dispostivo, nesse caso, tem que ser diferente de ipad
+      NavigationView {
+        self
+          .navigationBarTitleDisplayMode(.inline)
+          .dismissable(dismiss)
+      }
+      .navigationViewStyle(StackNavigationViewStyle()) // Empilhar as visualizações umas sobre as outras, nunca fazer uma apresentação lado a lado
+    } else {
+      self
+    }
+  }
+  
+  @ViewBuilder
+  func dismissable(_ dismiss: (() -> Void)?) -> some View {
+    if UIDevice.current.userInterfaceIdiom != .pad, let dismiss = dismiss {
+      self.toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Fechar"){
+            dismiss()
+          }
+        }
+      }
+    } else {
+      self
+    }
+  }
+}
+
+extension View {
+  func compactableToolbar<Content>(@ViewBuilder content: () -> Content) -> some View where Content: View {
+    self.toolbar {
+      content().modifier(CompactableIntoContextMenu())
+    }
+  }
+}
+
+struct CompactableIntoContextMenu: ViewModifier {
+  @Environment(\.horizontalSizeClass) var horizontalSizeClass
+  
+  var compact: Bool {horizontalSizeClass == .compact}
+  
+  func body(content: Content) -> some View {
+    if compact {
+      Button {
+        
+      } label: {
+        Image(systemName: "ellipsis.circle")
+      }
+      .contextMenu {
+        content
+      }
+    } else {
+      content
+    }
   }
 }
